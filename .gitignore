@@ -1,0 +1,28 @@
+# Python virtual env
+.venv/
+
+# Generated artifacts (sensitive / derived)
+output/*
+inputs/*
+reports/phase1/*
+reports/phase2/*
+carve/*
+
+# Keep directory placeholders
+!output/.gitkeep
+!inputs/.gitkeep
+!reports/phase1/.gitkeep
+!reports/phase2/.gitkeep
+!carve/.gitkeep
+
+# RWZ and OCR sensitive raw data (any location)
+*.rwz
+*.rwz:Zone.Identifier
+*:Zone.Identifier
+
+# Common temporary files
+*.tmp
+*.temp
+*.log
+.DS_Store
+Thumbs.db
