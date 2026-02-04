@@ -41,7 +41,7 @@ def generate_final_report(reports_dir: Path, output: Path) -> int:
     report_lines.append("")
     report_lines.append("**Session:** GitHub Copilot Phase 2 Deep Analysis")
     report_lines.append("**Date:** 2026-02-03")
-    report_lines.append("**File:** inputs/無題.rwz (86,842 bytes)")
+    report_lines.append("**Input RWZ:** Provided at runtime (see run.ps1 -Rwz)")
     report_lines.append("")
     
     # Executive Summary

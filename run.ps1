@@ -1,13 +1,14 @@
 param(
-  [string]$Rwz = "inputs/無題.rwz",
+  [string]$Rwz = "",
   [string]$Screens = "inputs/screenshots/99_Outlookフィルター/20260202",
   [switch]$Deep,
   [switch]$UseOcr,
   [switch]$Phase2
 )
 
+
+$ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RwzPath = Join-Path $Root $Rwz
 $ScreensPath = Join-Path $Root $Screens
 
 $ReportsDir = Join-Path $Root "reports"
@@ -24,9 +25,58 @@ if (!(Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | O
 if (!(Test-Path $InputsDir)) { New-Item -ItemType Directory -Path $InputsDir | Out-Null }
 if (!(Test-Path $CarveDir)) { New-Item -ItemType Directory -Path $CarveDir | Out-Null }
 
-$Py = "python"
-$VenvPy = Join-Path $Root ".venv/bin/python"
-if (Test-Path $VenvPy) { $Py = $VenvPy }
+$Py = $null
+$VenvCandidates = @(
+  (Join-Path $Root ".venv/Scripts/python.exe"),
+  (Join-Path $Root ".venv/bin/python")
+)
+foreach ($cand in $VenvCandidates) {
+  if (Test-Path $cand) {
+    $Py = $cand
+    break
+  }
+}
+if (-not $Py) {
+  if (Get-Command python -ErrorAction SilentlyContinue) {
+    $Py = "python"
+  } elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
+    $Py = "python3"
+  } else {
+    Write-Error "python/python3 not found. Run scripts/setup_venv.ps1 first."
+    exit 1
+  }
+}
+
+$RwzPath = $null
+if ($Rwz) {
+  if ([System.IO.Path]::IsPathRooted($Rwz)) {
+    $RwzPath = $Rwz
+  } else {
+    $RwzPath = Join-Path $Root $Rwz
+  }
+
+  if (!(Test-Path $RwzPath)) {
+    Write-Error "RWZ file not found: $RwzPath"
+    Write-Host "Pass an existing .rwz path via -Rwz (relative to repo root or absolute path)."
+    exit 1
+  }
+} else {
+  $RwzCandidates = @(Get-ChildItem -Path $InputsDir -File -Filter "*.rwz" | Sort-Object Name)
+  if ($RwzCandidates.Count -eq 1) {
+    $RwzPath = $RwzCandidates[0].FullName
+    Write-Host "Using RWZ: $($RwzCandidates[0].Name)"
+  } elseif ($RwzCandidates.Count -gt 1) {
+    Write-Error "Multiple RWZ files found under inputs/. Please specify -Rwz explicitly."
+    Write-Host "Candidates:"
+    $RwzCandidates | ForEach-Object { Write-Host "- inputs/$($_.Name)" }
+    exit 1
+  } else {
+    Write-Error "No RWZ file found under inputs/."
+    Write-Host "Place an RWZ file under inputs/ or pass -Rwz."
+    Write-Host "Example: pwsh ./run.ps1 -Rwz inputs/sample.rwz"
+    exit 1
+  }
+}
 
 # OCR (optional; analysis-only)
 $OcrJson = Join-Path $InputsDir "ocr.json"

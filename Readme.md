@@ -35,6 +35,11 @@ pwsh .\scripts\setup_venv.ps1
 
 詳細な構造解説は `Documents/README.md` から参照してください。
 
+## 入力ファイルの前提
+
+- 既定入力 `inputs/無題.rwz` はサンプル名です（Git 管理しません）。
+- 実ファイルを `inputs/` に配置するか、`-Rwz` で明示指定してください。
+
 ## 使い方（基本）
 
 PowerShell からルートで実行:
@@ -57,8 +62,10 @@ pwsh .\run.ps1 -Phase2
 
 入力ファイルの指定:
 
+- `inputs/` に `.rwz` が1件だけある場合は、`-Rwz` を省略できます。
+
 ```powershell
-pwsh .\run.ps1 -Rwz "inputs\\無題.rwz" -Screens "inputs\\screenshots\\99_Outlookフィルター\\20260202"
+pwsh .\run.ps1 -Rwz "inputs\sample.rwz" -Screens "inputs\screenshots\my-captures"
 ```
 
 ## OCR の扱い
