@@ -1,0 +1,12 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd /home/jr2twt/github/tmp && python3 tools/rwz_pointer_network\\.py inputs/無題\\.rwz --out reports/pointer_network\\.json --out-md reports/pointer_network\\.md$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /home/jr2twt/github/tmp && python3 tools/rwz_size_fields\\.py inputs/無題\\.rwz --out reports/size_fields\\.json --out-md reports/size_fields\\.md$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

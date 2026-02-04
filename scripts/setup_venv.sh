@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_DIR="$ROOT_DIR/.venv"
+REQ="$ROOT_DIR/requirements.txt"
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 not found" >&2
+  exit 1
+fi
+
+if [ ! -d "$VENV_DIR" ]; then
+  python3 -m venv "$VENV_DIR"
+fi
+
+# shellcheck disable=SC1090
+source "$VENV_DIR/bin/activate"
+
+python -m pip install --upgrade pip
+python -m pip install -r "$REQ"
+
+echo "Venv ready: $VENV_DIR"

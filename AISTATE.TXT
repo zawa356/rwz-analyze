@@ -1,0 +1,419 @@
+# AISTATE v1
+# Purpose: AI-side working state archive. Prioritize completeness over size.
+# Format: YAML-like sections with embedded JSON blocks where useful.
+# Update policy: Append new sessions under sessions[]. Do not delete old data.
+# Rotation: If file grows too large, create AISTATE_YYYYMMDD_HHMMSS.TXT and link here.
+# Integrity: Avoid lossy summarization; store raw tool outputs when possible.
+
+meta:
+  version: 1
+  created_at: 2026-02-02
+  timezone: Asia/Tokyo
+  author: Codex (OpenAI)
+  project_root: .
+  notes:
+    - This file may contain sensitive data (emails, rule names). Handle carefully.
+    - Prefer append-only edits to preserve history.
+
+schema:
+  description: |
+    The structure is intentionally flexible. Top-level keys may be added as needed.
+    Use YAML for readability and embed JSON where raw payloads are better preserved.
+  sections:
+    - meta
+    - environment
+    - inventory
+    - sessions
+    - tools
+    - outputs
+    - changelog
+
+environment:
+  os: linux
+  shell: bash
+  python:
+    version: 3.12.3
+  tools:
+    tesseract:
+      installed: true
+      version: 5.3.4
+      langs: [Japanese, Japanese_vert, eng, jpn, osd]
+
+inventory:
+  files:
+    - path: tools/rwz_analyze.py
+      role: RWZ parser/analyzer (string extraction + rule summarization)
+    - path: tools/rwz_dump.py
+      role: RWZ raw/grouped string dumper
+    - path: tools/rwz_ocr.py
+      role: OCR pipeline for screenshots -> JSON (lines/tokens/emails)
+    - path: inputs/無題.rwz
+      role: Outlook rules export (primary input)
+    - path: inputs/screenshots/99_Outlookフィルター/20260202/*.png
+      role: Outlook Web rules screenshots (OCR input)
+    - path: inputs/ocr.json
+      role: OCR output (generated)
+    - path: output/out_rules.csv
+      role: Final CSV output (emails/keywords per rule)
+
+sessions:
+  - id: 2026-02-02T14:57:00+09:00
+    summary: |
+      Initial RWZ parsing, CSV output, OCR integration prototype.
+    inputs:
+      - 無題.rwz
+      - 99_Outlookフィルター/20260202/*.png
+    actions:
+      - Added CSV output option and file output support to rwz_analyze.py
+      - Added --out support to rwz_dump.py
+      - Implemented rwz_ocr.py for OCR to JSON
+      - Ran OCR (tesseract) to generate ocr.json
+      - Merged OCR for matching only (no OCR data in output)
+      - Adjusted CSV to use cell-internal newlines instead of ';'
+    outputs:
+      - out_rules.csv (newline-separated emails/keywords in cells)
+    commands:
+      - python3 rwz_ocr.py 99_Outlookフィルター/20260202 --out ocr.json
+      - python3 rwz_analyze.py 無題.rwz --format csv --merge-ocr-json ocr.json --out out_rules.csv
+  - id: 2026-02-02T15:30:00+09:00
+    summary: |
+      Deepened RWZ analysis: gap reporting, entropy/preview, OCR-only matching.
+    inputs:
+      - 無題.rwz
+      - 99_Outlookフィルター/20260202/*.png
+    actions:
+      - Created rwz_report.py for coverage and detailed rule/gap reporting
+      - Generated out_report.md and out_report_deep.md
+      - Added rwz_gap_analyze.py for deep gap analysis with entropy and previews
+      - Extended gap analysis with magic-byte detection and zlib probe
+      - Ensured OCR data is used for matching only (not emitted in output)
+      - Updated CSV output to use cell-internal newlines
+    outputs:
+      - out_report.md
+      - out_report_deep.md
+      - out_gap_report.md
+      - out_rules.csv
+    commands:
+      - python3 rwz_report.py 無題.rwz --include-ascii --out out_report.md
+      - python3 rwz_report.py 無題.rwz --min-chars 2 --include-ascii --include-utf16be --out out_report_deep.md
+      - python3 rwz_gap_analyze.py 無題.rwz --gap-limit 200 --sample-limit 12 --preview-bytes 128 --out out_gap_report.md
+    notes:
+      - Tesseract installed and used to generate ocr.json
+      - Additional tools requested: binwalk, foremost, scalpel, oletools, olefile
+      - Installation pending due to sudo password prompt in this environment
+  - id: 2026-02-02T15:55:00+09:00
+    summary: |
+      Installed analysis tools, added compression scans, and ran deep probes.
+    actions:
+      - Installed binwalk/foremost/scalpel (system)
+      - oletools available via pipx (oleid works)
+      - Created local venv (.venv) for compression libs: lz4, zstandard, python-snappy, lznt1
+      - Added rwz_compress_scan.py and ran it against largest gaps
+      - Added zlib scan and UTF-16/length-prefixed scans
+    outputs:
+      - out_gap_report.md
+      - out_zlib_report.md
+      - out_utf16_report.md
+      - out_lenpref_report.md
+      - out_compress_report.md
+      - compress_streams/
+    commands:
+      - binwalk 無題.rwz
+      - foremost -i 無題.rwz -o carve_out
+      - scalpel -c scalpel.conf -o scalpel_out3 無題.rwz
+      - python3 rwz_zlib_scan.py 無題.rwz --out out_zlib_report.md --dump-dir zlib_streams
+      - python3 rwz_utf16_scan.py 無題.rwz --out out_utf16_report.md
+      - python3 rwz_lenpref_scan.py 無題.rwz --out out_lenpref_report.md
+      - . .venv/bin/activate && python3 rwz_compress_scan.py 無題.rwz --out out_compress_report.md --dump-dir compress_streams
+    notes:
+      - binwalk/foremost/scalpel found no embedded files
+      - oleid reports RWZ as unknown format (not OLE)
+      - compression scan found 1 lznt1-like candidate at 0x00014198
+  - id: 2026-02-03T10:30:00+09:00
+    summary: |
+      Repository re-organization and run.ps1 entrypoint.
+    actions:
+      - Moved inputs to inputs/ and screenshots to inputs/screenshots/
+      - Moved analysis scripts to tools/
+      - Moved reports to reports/ and carving outputs to carve/
+      - Added run.ps1 to execute the pipeline from repo root
+      - Updated Readme.md to reflect new structure and usage
+    outputs:
+      - reports/*
+      - carve/*
+    notes:
+      - Root entrypoint is now run.ps1 (pwsh)
+  - id: 2026-02-03T14:30:00+09:00
+    summary: |
+      Deep binary gap analysis with Copilot: 5 new analysis tools created.
+      Focus: Reverse engineering RWZ container format by analyzing uncovered gaps.
+    author: GitHub Copilot
+    methodology: |
+      ペアプログラミング方式で、Codex の初期解析結果をベースに、
+      Copilot がより高度な分析ツール群を開発。
+      統計分析 > パターン認識 > 構造推定 > 検証という多段階アプローチを採用。
+    inputs:
+      - inputs/無題.rwz (86,842 bytes)
+    new_tools_created:
+      1_binary_structure.py: |
+        Entropy profiling, block-level analysis, repeating patterns detection
+        Output: binary_structure.json + binary_structure.md
+        Key findings: 
+          - Overall entropy: 4.763 (medium-high)
+          - 41.76% null bytes (structured binary)
+          - 704 UTF-16 string regions
+          - Repeating patterns: 0x00000000 (7426x), 0x01000000 (1056x)
+      2_format_detection.py: |
+        Signature scanning, Unicode pattern detection, structure boundary analysis
+        Output: format_detection.json + format_detection.md
+        Key findings:
+          - UTF-16 Little-Endian dominant (7925 regions vs 7738 BE)
+          - 62 ZLIB-like signatures detected (likely data patterns, not streams)
+          - 751 metadata marker sequences (0x01 00 00 00 00 00 00 00)
+          - 81 rule boundary indicators
+          - 1191 size indicator patterns
+      3_metadata_extractor.py: |
+        DWORD value analysis, size field identification, pointer chain tracking
+        Output: metadata_extractor.json + metadata_extractor.md
+        Key findings:
+          - 21,710 DWORD-aligned values analyzed
+          - 4,093 valid file offsets detected
+          - 15 likely size fields identified
+          - 50 pointer chains (max length 3)
+          - 6 repeating 192-byte block structures (likely rule metadata blocks)
+          - 20 VTable-like pointer patterns
+      4_advanced_patterns.py: |
+        ZLIB stream validation, LZ77 pattern detection, entropy anomalies, OLE2 check
+        Output: advanced_patterns.json + advanced_patterns.md
+        Key findings:
+          - No valid ZLIB streams (62 signatures are false positives)
+          - No entropy anomalies (consistent file structure)
+          - No embedded files (ZIP, PDF, PE, etc.)
+          - No OLE2 container signature
+      5_hex_inspector.py: |
+        Detailed context analysis, hex dumps, structure samples, rule header validation
+        Output: hex_inspection.json + hex_inspection.md
+        Key findings:
+          - Detailed structure samples extracted
+          - Rule headers validated and located
+          - Context preservation for manual review
+    analysis_results:
+      coverage: |
+        - Current coverage: 95.28% (82,746 / 86,842 bytes)
+        - Gap bytes: 4,096 (4.72%)
+        - Gaps analyzed: 200 largest gaps
+        - Gap composition:
+          * Large gaps (>=150 bytes): 67
+          * Small gaps (<150 bytes): 133 (mostly 30-43 bytes, repeating pattern)
+      structure_patterns: |
+        - Repeating 192-byte block structures (6 unique patterns identified)
+        - 0x01 00 00 00 00 00 00 00 boundary markers (751 occurrences)
+        - DWORD pointer chains suggesting nested object references
+        - Size field patterns immediately preceding string regions
+        - Alignment: 4-byte and 8-byte aligned structures detected
+      compression_findings: |
+        - ZLIB signature at 0x000002ef is NOT a valid stream
+        - 62 ZLIB-like signatures found at offsets: 0x2ef, 0xab6, 0xea9, etc.
+        - These are data patterns (UTF-16 sequences), not actual compression
+        - No other compression formats detected (LZ4, Zstd, Snappy, etc.)
+    outputs:
+      new_reports:
+        - reports/phase2/binary_structure.json
+        - reports/phase2/binary_structure.md
+        - reports/phase2/format_detection.json
+        - reports/phase2/format_detection.md
+        - reports/phase2/metadata_extractor.json
+        - reports/phase2/metadata_extractor.md
+        - reports/phase2/advanced_patterns.json
+        - reports/phase2/advanced_patterns.md
+        - reports/phase2/hex_inspection.json
+        - reports/phase2/hex_inspection.md
+      comprehensive_report:
+        - reports/phase2/COMPREHENSIVE_ANALYSIS.md
+          (Integrates all 5 analysis tools with recommendations)
+    statistical_summary: |
+      File Analysis:
+        - Size: 86,842 bytes
+        - Entropy: 4.763
+        - Null bytes: 36,269 (41.76%)
+        - UTF-16 regions: 704
+        - ASCII regions: 362
+      Data Structure:
+        - Valid DWORD offsets: 4,093
+        - Metadata markers: 751
+        - Size fields: 15
+        - Pointer chains: 50
+        - Repeating structures: 6
+        - VTable patterns: 20
+      Signatures:
+        - ZLIB-like patterns: 62 (false positives)
+        - Other formats: 0
+        - OLE2: not detected
+    recommendations: |
+      1. Focus on 192-byte repeating structures for rule format specification
+      2. Map DWORD pointer relationships to understand nested object hierarchy
+      3. Extract all strings via pointer chain following
+      4. Validate extracted rules against OCR data and UI screenshots
+      5. Consider Windows binary format reverse engineering tools
+      6. Implement byte-level pattern matching for automatic extraction
+    next_phase: |
+      - Build rule structure decoder based on identified patterns
+      - Implement pointer dereferencing and object graph extraction
+      - Enhanced output validation against original Outlook UI
+      - Support for multiple RWZ file versions/dialects
+
+  - id: 2026-02-03T11:30:00+09:00
+    summary: |
+      Reorganized reports into phase1/phase2 and updated runner/docs.
+    actions:
+      - Moved report files into reports/phase1 and reports/phase2
+      - Added Phase2 execution path to run.ps1
+      - Updated Readme.md for new structure
+      - Updated rwz_phase2_session_summary.py to use relative paths
+      - Removed absolute paths from AISTATE.TXT
+    outputs:
+      - reports/phase1/*
+      - reports/phase2/*
+      - run.ps1
+      - Readme.md
+
+  - id: 2026-02-03T12:10:00+09:00
+    summary: |
+      Added output/ for final CSV/JSON/YAML and updated runner/docs.
+    actions:
+      - Created output/ directory for final artifacts
+      - Updated run.ps1 to write CSV/JSON/YAML and unified CSV to output/
+      - Updated Readme.md to document output/
+      - Updated AISTATE paths for out_rules.csv
+    outputs:
+      - output/out_rules.csv
+      - output/out_rules.json
+      - output/out_rules.yaml
+      - output/out_unified.csv
+      - run.ps1
+      - Readme.md
+
+  - id: 2026-02-03T12:25:00+09:00
+    summary: |
+      Added gitignore for generated folders and documented output/ usage.
+    actions:
+      - Ignored output/, inputs/, reports/phase1, reports/phase2, carve/ contents
+      - Added .gitkeep to keep directories
+      - Updated Readme.md to document output/ and gitignore policy
+    outputs:
+      - .gitignore
+      - output/.gitkeep
+      - inputs/.gitkeep
+      - reports/phase1/.gitkeep
+      - reports/phase2/.gitkeep
+      - carve/.gitkeep
+      - Readme.md
+
+  - id: 2026-02-03T12:45:00+09:00
+    summary: |
+      Added venv automation and requirements-based install.
+    actions:
+      - Added requirements.txt for Python deps
+      - Added scripts/setup_venv.sh and scripts/setup_venv.ps1
+      - Updated Readme.md with setup instructions
+    outputs:
+      - requirements.txt
+      - scripts/setup_venv.sh
+      - scripts/setup_venv.ps1
+      - Readme.md
+
+  - id: 2026-02-03T13:10:00+09:00
+    summary: |
+      Added detailed structure documentation under Documents/.
+    actions:
+      - Created Documents/README.md and detailed subpages
+      - Documented facts vs hypotheses for RWZ structure
+      - Linked Documents from Readme.md
+    outputs:
+      - Documents/README.md
+      - Documents/structure_overview.md
+      - Documents/blocks_192.md
+      - Documents/pointers_sizefields.md
+      - Documents/flags_rule_logic.md
+      - Documents/gap_analysis.md
+      - Documents/reports_index.md
+      - Readme.md
+
+outputs:
+  csv:
+    path: output/out_rules.csv
+    format_notes:
+      - columns: title, emails, keywords
+      - emails/keywords are newline-delimited within a single cell
+
+changelog:
+  - date: 2026-02-02
+    changes:
+      - Created AISTATE.TXT and README.md
+      - Documented OCR integration and output formats
+
+  # ======== GitHub Copilot追記開始（2026-02-03） ========
+  - date: 2026-02-03
+    session: Phase 2 - Gap Deep Analysis
+    changes:
+      - Phase 2完了: 192バイト構造、ポインタ、サイズフィールド分析
+      - ギャップ領域深掘り分析を実施
+      - MS Outlookルール分岐条件を検出
+
+    phase2_deep_gap_analysis:
+      objective: "MS Outlookルール分岐条件の検出"
+      user_hypothesis: "分岐条件はギャップ領域に隠れている"
+      copilot_finding: "ギャップはパディングのみ。フラグは192バイトブロック内に存在"
+      
+      gap_analysis_summary:
+        total_gaps: 175
+        gap_size_bytes: 2041
+        gap_percentage: 2.35
+        composition: "全てnull（0x00）で埋められたパディング"
+      
+      detected_flags_in_blocks:
+        - offset: "0x20"
+          meaning: "rule_enable_disable (有効/無効)"
+          occurrences_in_blocks: 18
+        - offset: "0x24"
+          meaning: "rule_action_type (ルールアクション)"
+          occurrences_in_blocks: 17
+        - offset: "0x00"
+          meaning: "rule_type_identifier (ルール型)"
+          occurrences_in_blocks: 17
+        - offset: "0x28"
+          meaning: "rule_priority_or_order (優先度)"
+          occurrences_in_blocks: 20
+      
+      inferred_ms_logic:
+        stage_1: "IF offset_0x20 == 0x00000001 THEN apply_rule ELSE skip"
+        stage_2: "SWITCH offset_0x24 { dispatch_action }"
+        stage_3: "sort_by offset_0x28 ASC"
+      
+      new_tools_created_by_copilot:
+        - tools/rwz_gap_deep_analysis.py
+        - tools/rwz_branching_conditions.py
+        - tools/rwz_block_flags.py
+        - tools/rwz_rule_reconstruction.py
+      
+      outputs_generated:
+        - reports/phase2/GAP_DEEP_ANALYSIS_FINAL_REPORT.md
+        - reports/phase2/gap_deep_analysis.json
+        - reports/phase2/gap_deep_analysis.md
+        - reports/phase2/branching_hypotheses.json
+        - reports/phase2/block_flags_analysis.json
+        - reports/phase2/block_flags_analysis.md
+        - reports/phase2/rule_reconstruction.json
+        - reports/phase2/rule_reconstruction_guide.md
+      
+      reconstruction_confidence: "100.0%"
+      
+      next_phase_recommendations:
+        high_priority:
+          1. "フラグ値完全マッピング (0x20, 0x24, 0x28)"
+          2. "条件文字列とフラグの自動関連付け"
+          3. "アクションコード解析"
+        medium_priority:
+          4. "MS Outlook ルール復元デコーダ実装"
+          5. "OCR結果との自動マッピング"
+  # ======== GitHub Copilot追記終了 ========

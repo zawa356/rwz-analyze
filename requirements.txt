@@ -1,0 +1,8 @@
+# Core output formats
+PyYAML>=6.0
+
+# Deep analysis / compression probes
+lz4>=4.0
+zstandard>=0.20
+python-snappy>=0.7
+lznt1>=0.2
